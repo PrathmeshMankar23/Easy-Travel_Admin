@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import { categoryStorage, itineraryStorage, initializeStorage } from '@/utils/storage';
+import {
+  categoryStorage,
+  itineraryStorage,
+  initializeStorage
+} from '@/utils/storage';
 
 interface Category {
   id: string;
@@ -24,127 +28,116 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showItineraryModal, setShowItineraryModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+
+  const [selectedCategory, setSelectedCategory] =
+    useState<Category | null>(null);
+
   const [formData, setFormData] = useState({
     name: '',
     isActive: true
   });
+
   const router = useRouter();
+
+  // =================================
+  // LOAD DATA (single source of truth)
+  // =================================
+
+  const loadCategories = () => {
+    const cats = categoryStorage.getCategories();
+    const its = itineraryStorage.getItineraries();
+
+    const categoriesWithCounts = cats.map((category) => ({
+      ...category,
+      _count: {
+        itineraries: its.filter((i) => i.categoryId === category.id).length
+      }
+    }));
+
+    setCategories(categoriesWithCounts);
+    setItineraries(its);
+    setIsLoading(false);
+  };
+
+  // =================================
+  // INIT
+  // =================================
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
+
     if (!token) {
       router.push('/login');
       return;
     }
 
-    // Initialize storage and load data
     initializeStorage();
     loadCategories();
 
-    // Listen for storage updates from other components
-    const handleStorageUpdate = () => {
-      loadCategories();
-    };
+    const handleUpdate = () => loadCategories();
 
-    window.addEventListener('storage-updated', handleStorageUpdate);
-    
-    return () => {
-      window.removeEventListener('storage-updated', handleStorageUpdate);
-    };
+    window.addEventListener('storage-updated', handleUpdate);
+
+    return () =>
+      window.removeEventListener('storage-updated', handleUpdate);
   }, [router]);
 
-  const loadCategories = () => {
-    const categories = categoryStorage.getCategories();
-    const itineraries = itineraryStorage.getItineraries();
-    
-    // Update category counts
-    const categoriesWithCounts = categories.map(category => ({
-      ...category,
-      _count: {
-        itineraries: itineraries.filter(i => i.categoryId === category.id).length
-      }
-    }));
-    
-    setCategories(categoriesWithCounts);
-    setItineraries(itineraries);
-    setIsLoading(false);
-  };
+  // =================================
+  // CRUD (clean + safe)
+  // =================================
 
   const handleAddCategory = () => {
     if (!formData.name.trim()) return;
 
-    const newCategory = categoryStorage.addCategory({
+    categoryStorage.addCategory({
       name: formData.name,
       isActive: formData.isActive
     });
 
-    setCategories([...categories, { ...newCategory, _count: { itineraries: 0 } }]);
+    loadCategories(); // ✅ only this
+
     setFormData({ name: '', isActive: true });
     setShowAddModal(false);
-    
-    // Trigger storage update event to notify other pages
-    window.dispatchEvent(new CustomEvent('storage-updated', { 
-      detail: { 
-        type: 'categories', 
-        data: categoryStorage.getCategories() 
-      } 
-    }));
   };
 
   const handleEditCategory = () => {
     if (!selectedCategory || !formData.name.trim()) return;
 
-    const updatedCategory = categoryStorage.updateCategory(selectedCategory.id, {
+    categoryStorage.updateCategory(selectedCategory.id, {
       name: formData.name,
       isActive: formData.isActive
     });
 
-    if (updatedCategory) {
-      setCategories(categories.map(cat => 
-        cat.id === selectedCategory.id 
-          ? { ...cat, name: formData.name, isActive: formData.isActive }
-          : cat
-      ));
-    }
-    
-    setFormData({ name: '', isActive: true });
+    loadCategories(); // ✅ only this
+
     setShowEditModal(false);
     setSelectedCategory(null);
-    
-    // Trigger storage update event to notify other pages
-    window.dispatchEvent(new CustomEvent('storage-updated', { 
-      detail: { 
-        type: 'categories', 
-        data: categoryStorage.getCategories() 
-      } 
-    }));
+    setFormData({ name: '', isActive: true });
   };
 
   const handleDeleteCategory = (id: string) => {
-    const categoryItineraries = itineraries.filter(i => i.categoryId === id);
-    
+    const categoryItineraries = itineraries.filter(
+      (i) => i.categoryId === id
+    );
+
     if (categoryItineraries.length > 0) {
-      if (!confirm(`This category has ${categoryItineraries.length} itineraries. Deleting it will move these itineraries to "Unknown Category". Continue?`)) {
+      if (
+        !confirm(
+          `This category has ${categoryItineraries.length} itineraries. Continue deleting?`
+        )
+      )
         return;
-      }
     } else {
       if (!confirm('Are you sure you want to delete this category?')) return;
     }
 
     categoryStorage.deleteCategory(id);
-    setCategories(categories.filter(cat => cat.id !== id));
-    
-    // Trigger storage update event to notify other pages
-    window.dispatchEvent(new CustomEvent('storage-updated', { 
-      detail: { 
-        type: 'categories', 
-        data: categoryStorage.getCategories() 
-      } 
-    }));
+
+    loadCategories(); // ✅ only this
   };
 
   const openEditModal = (category: Category) => {
@@ -159,60 +152,35 @@ export default function CategoriesPage() {
   const openItineraryModal = (category: Category) => {
     setSelectedCategory(category);
     setShowItineraryModal(true);
-    // Refresh itineraries to get latest data
-    const latestItineraries = itineraryStorage.getItineraries();
-    setItineraries(latestItineraries);
+    loadCategories(); // refresh latest itineraries
   };
 
-  const changeItineraryCategory = (itineraryId: string, newCategoryId: string) => {
-    itineraryStorage.updateItinerary(itineraryId, { categoryId: newCategoryId });
-    
-    setItineraries(itineraries.map(i => 
-      i.id === itineraryId ? { ...i, categoryId: newCategoryId } : i
-    ));
-    
-    // Update category counts and trigger refresh
-    const updatedCategories = categories.map(cat => ({
-      ...cat,
-      _count: {
-        itineraries: itineraries.filter(i => i.categoryId === cat.id).length
-      }
-    }));
-    setCategories(updatedCategories);
-    
-    // Trigger storage update event
-    window.dispatchEvent(new CustomEvent('storage-updated', { 
-      detail: { 
-        type: 'itineraries', 
-        data: itineraryStorage.getItineraries() 
-      } 
-    }));
+  const changeItineraryCategory = (
+    itineraryId: string,
+    newCategoryId: string
+  ) => {
+    itineraryStorage.updateItinerary(itineraryId, {
+      categoryId: newCategoryId
+    });
+
+    loadCategories(); // ✅ auto refresh counts
   };
 
-  // Listen for storage changes to update counts in real-time
-  useEffect(() => {
-    const handleStorageChange = () => {
-      loadCategories();
-    };
+  const getCategoryItineraries = (categoryId: string) =>
+    itineraries.filter((i) => i.categoryId === categoryId);
 
-    // Custom event listener for storage updates
-    window.addEventListener('storage-updated', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage-updated', handleStorageChange);
-    };
-  }, []);
-
-  const getCategoryItineraries = (categoryId: string) => {
-    return itineraries.filter(i => i.categoryId === categoryId);
-  };
+  // =================================
+  // UI (UNCHANGED — your CSS intact)
+  // =================================
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-primary">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-600"></div>
-          <p className="text-secondary animate-pulse">Loading Categories...</p>
+          <p className="text-secondary animate-pulse">
+            Loading Categories...
+          </p>
         </div>
       </div>
     );
@@ -221,7 +189,7 @@ export default function CategoriesPage() {
   return (
     <div className="bg-primary min-h-screen">
       <Navigation />
-      
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Page Header */}
@@ -292,7 +260,7 @@ export default function CategoriesPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <span className={`status-${category.isActive ? 'active' : 'inactive'}`}>
@@ -331,7 +299,7 @@ export default function CategoriesPage() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., Adventure Tours"
                   />
@@ -341,7 +309,7 @@ export default function CategoriesPage() {
                     type="checkbox"
                     id="isActive"
                     checked={formData.isActive}
-                    onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
@@ -383,7 +351,7 @@ export default function CategoriesPage() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -392,7 +360,7 @@ export default function CategoriesPage() {
                     type="checkbox"
                     id="editIsActive"
                     checked={formData.isActive}
-                    onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="editIsActive" className="ml-2 block text-sm text-gray-900">

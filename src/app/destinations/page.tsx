@@ -1,9 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import { categoryStorage, itineraryStorage, getItinerariesWithCategories, initializeStorage } from '@/utils/storage';
+import {
+  categoryStorage,
+  itineraryStorage,
+  getItinerariesWithCategories,
+  initializeStorage
+} from '@/utils/storage';
 
 interface Destination {
   id: string;
@@ -35,11 +40,21 @@ export default function DestinationsPage() {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
-  const [editingDestination, setEditingDestination] = useState<Destination | null>(null);
-  const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
+  const [editingDestination, setEditingDestination] =
+    useState<Destination | null>(null);
+  const [selectedDestination, setSelectedDestination] =
+    useState<Destination | null>(null);
+
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+
+  const router = useRouter();
+
+  // =================================
+  // Form State
+  // =================================
 
   const initialFormState = {
     id: '',
@@ -54,66 +69,40 @@ export default function DestinationsPage() {
     highlights: [''],
     included: [''],
     notIncluded: [''],
-    days: [{
-      title: '',
-      image: '',
-      description: '',
-      activities: ['']
-    }]
+    days: [
+      {
+        title: '',
+        image: '',
+        description: '',
+        activities: ['']
+      }
+    ]
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const router = useRouter();
 
-  // --- Dynamic Field Helpers ---
-  const addArrayItem = (field: 'highlights' | 'included' | 'notIncluded') => {
-    setFormData({ ...formData, [field]: [...formData[field], ''] });
-  };
+  // =================================
+  // LOAD DATA
+  // =================================
 
-  const removeArrayItem = (field: 'highlights' | 'included' | 'notIncluded', index: number) => {
-    const newArr = formData[field].filter((_, i) => i !== index);
-    setFormData({ ...formData, [field]: newArr.length ? newArr : [''] });
-  };
+  const loadData = useCallback(() => {
+    initializeStorage();
+    setCategories(categoryStorage.getCategories());
+    const destinationsWithCategories = getItinerariesWithCategories();
+    console.log('Destinations with categories:', destinationsWithCategories);
+    console.log('Categories available:', categoryStorage.getCategories());
+    setDestinations(destinationsWithCategories);
+    setIsLoading(false);
+  }, []);
 
-  const updateArrayItem = (field: 'highlights' | 'included' | 'notIncluded', index: number, value: string) => {
-    const newArr = [...formData[field]];
-    newArr[index] = value;
-    setFormData({ ...formData, [field]: newArr });
-  };
+  const openViewModal = useCallback((destination: Destination) => {
+    setSelectedDestination(destination);
+    setShowViewModal(true);
+  }, []);
 
-  // Day Handlers
-  const addDay = () => {
-    setFormData({
-      ...formData,
-      days: [...formData.days, { title: '', image: '', description: '', activities: [''] }]
-    });
-  };
-
-  const updateDay = (index: number, field: string, value: string) => {
-    const newDays = [...formData.days];
-    newDays[index] = { ...newDays[index], [field]: value };
-    setFormData({ ...formData, days: newDays });
-  };
-
-  // Activity Handlers (Fixed)
-  const addActivity = (dayIndex: number) => {
-    const newDays = [...formData.days];
-    newDays[dayIndex].activities = [...newDays[dayIndex].activities, ''];
-    setFormData({ ...formData, days: newDays });
-  };
-
-  const removeActivity = (dayIndex: number, activityIndex: number) => {
-    const newDays = [...formData.days];
-    newDays[dayIndex].activities = newDays[dayIndex].activities.filter((_, i) => i !== activityIndex);
-    if (newDays[dayIndex].activities.length === 0) newDays[dayIndex].activities = [''];
-    setFormData({ ...formData, days: newDays });
-  };
-
-  const updateActivity = (dayIndex: number, activityIndex: number, value: string) => {
-    const newDays = [...formData.days];
-    newDays[dayIndex].activities[activityIndex] = value;
-    setFormData({ ...formData, days: newDays });
-  };
+  // =================================
+  // INIT
+  // =================================
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -130,39 +119,46 @@ export default function DestinationsPage() {
     };
 
     window.addEventListener('storage-updated', handleStorageUpdate);
-    
+
     return () => {
       window.removeEventListener('storage-updated', handleStorageUpdate);
     };
   }, [router]);
 
-  const loadData = () => {
-    const categoriesData = categoryStorage.getCategories();
-    const destinationsData = getItinerariesWithCategories();
-    setCategories(categoriesData);
-    setDestinations(destinationsData);
-    setIsLoading(false);
-  };
+  // Separate effect for handling URL parameters
+  useEffect(() => {
+    if (destinations.length > 0) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const destinationId = urlParams.get('id');
+      if (destinationId) {
+        const destination = destinations.find(d => d.id === destinationId);
+        if (destination) {
+          openViewModal(destination);
+        }
+      }
+    }
+  }, [destinations, openViewModal]);
 
-  const handleDelete = async (id: string) => {
+  // =================================
+  // CRUD
+  // =================================
+
+  const handleDelete = (id: string) => {
     if (!confirm('Are you sure you want to delete this destination?')) return;
+
     itineraryStorage.deleteItinerary(id);
-    
-    // Trigger storage update event to notify other pages
-    window.dispatchEvent(new CustomEvent('storage-updated', { 
-      detail: { 
-        type: 'itineraries', 
-        data: itineraryStorage.getItineraries() 
-      } 
-    }));
-    
-    setDestinations(destinations.filter(item => item.id !== id));
+
+    // ❌ no manual dispatch
+    // ❌ no manual filtering
+
+    loadData();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.categoryId || !formData.duration || !formData.price) {
-      alert('Please fill in all required fields');
+
+    if (!formData.title || !formData.categoryId || !formData.price) {
+      alert('Please fill required fields');
       return;
     }
 
@@ -182,52 +178,157 @@ export default function DestinationsPage() {
     } else {
       itineraryStorage.addItinerary(destinationData);
     }
-    
+
     // Trigger storage update event to notify other pages
-    window.dispatchEvent(new CustomEvent('storage-updated', { 
-      detail: { 
-        type: 'itineraries', 
-        data: itineraryStorage.getItineraries() 
-      } 
+    window.dispatchEvent(new CustomEvent('storage-updated', {
+      detail: {
+        type: 'itineraries',
+        data: itineraryStorage.getItineraries()
+      }
     }));
-    
+
     loadData();
+
     setFormData(initialFormState);
     setShowAddModal(false);
     setEditingDestination(null);
   };
 
+  // Day Management Functions
+  const addDay = () => {
+    setFormData({
+      ...formData,
+      days: [...formData.days, { title: '', image: '', description: '', activities: [''] }]
+    });
+  };
+
+  // ===============================
+  // ✅ PASTE ALL HELPERS HERE
+  // ===============================
+
+  const addArrayItem = (field: 'highlights' | 'included' | 'notIncluded') => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: [...prev[field], '']
+    }));
+  };
+
+  const updateArrayItem = (
+    field: 'highlights' | 'included' | 'notIncluded',
+    index: number,
+    value: string
+  ) => {
+    setFormData(prev => {
+      const arr = [...prev[field]];
+      arr[index] = value;
+      return { ...prev, [field]: arr };
+    });
+  };
+
+  const removeArrayItem = (
+    field: 'highlights' | 'included' | 'notIncluded',
+    index: number
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index)
+    }));
+  };
+
+
+  // Day helpers
+  const updateDay = (dayIndex: number, key: string, value: any) => {
+    setFormData(prev => {
+      const days = [...prev.days];
+      days[dayIndex] = { ...days[dayIndex], [key]: value };
+      return { ...prev, days };
+    });
+  };
+
+  const addActivity = (dayIndex: number) => {
+    setFormData(prev => {
+      const days = [...prev.days];
+      days[dayIndex].activities.push('');
+      return { ...prev, days };
+    });
+  };
+
+  const updateActivity = (
+    dayIndex: number,
+    actIndex: number,
+    value: string
+  ) => {
+    setFormData(prev => {
+      const days = [...prev.days];
+      days[dayIndex].activities[actIndex] = value;
+      return { ...prev, days };
+    });
+  };
+
+  const removeActivity = (dayIndex: number, actIndex: number) => {
+    setFormData(prev => {
+      const days = [...prev.days];
+      days[dayIndex].activities =
+        days[dayIndex].activities.filter((_, i) => i !== actIndex);
+      return { ...prev, days };
+    });
+  };
+
+
+
   const openEditModal = (destination: Destination) => {
     setEditingDestination(destination);
+
     setFormData({
       id: destination.id,
       title: destination.title,
       description: destination.description,
       categoryId: destination.category?.id || '',
-      duration: destination.duration || 0,
+      duration: destination.duration,
       nights: destination.nights || 0,
       price: destination.price.toString(),
       image: destination.image || '',
       rating: destination.rating || 0,
-      highlights: destination.highlights?.length ? destination.highlights : [''],
-      included: destination.included?.length ? destination.included : [''],
-      notIncluded: destination.notIncluded?.length ? destination.notIncluded : [''],
-      days: destination.days?.length ? destination.days : [{ title: '', image: '', description: '', activities: [''] }]
+
+      highlights:
+        destination.highlights?.length
+          ? destination.highlights
+          : [''],
+
+      included:
+        destination.included?.length
+          ? destination.included
+          : [''],
+
+      notIncluded:
+        destination.notIncluded?.length
+          ? destination.notIncluded
+          : [''],
+
+      days:
+        destination.days?.length
+          ? destination.days
+          : initialFormState.days
     });
+
+
     setShowAddModal(true);
   };
 
-  const openViewModal = (destination: Destination) => {
-    setSelectedDestination(destination);
-    setShowViewModal(true);
-  };
+  // =================================
+  // UI (UNCHANGED)
+  // =================================
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
-
+  if (isLoading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   return (
     <div className="page-container">
       <Navigation />
-      
+
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -240,7 +341,7 @@ export default function DestinationsPage() {
               <button onClick={() => setViewMode('table')} className={`view-toggle button ${viewMode === 'table' ? 'active' : ''}`}>Table</button>
             </div>
             <button onClick={() => { setFormData(initialFormState); setEditingDestination(null); setShowAddModal(true); }} className="add-new-btn">
-              Add New
+             + Add New Destination
             </button>
           </div>
         </div>
@@ -270,7 +371,7 @@ export default function DestinationsPage() {
                           <div className="card-price">₹{destination.price.toLocaleString('en-IN')}</div>
                         </div>
                       </div>
-                      
+
                       <div className="card-actions">
                         <button onClick={() => openEditModal(destination)} className="card-btn card-btn-edit">Edit</button>
                         <button onClick={() => openViewModal(destination)} className="card-btn card-btn-view">View</button>
@@ -281,70 +382,71 @@ export default function DestinationsPage() {
                 ))}
               </div>
             ) : (
-              <div className="table-container">
-                <table className="itinerary-table">
-                  <thead className="table-header">
+              <div className="overflow-x-auto bg-white rounded-xl shadow-md">
+                <table className="min-w-full border-collapse">
+                  <thead className="bg-gray-100">
                     <tr>
-                      <th className="table-header text-left">Title</th>
-                      <th className="table-header text-left">Category</th>
-                      <th className="table-header text-left">Duration</th>
-                      <th className="table-header text-left">Price</th>
-                      <th className="table-header text-left">Rating</th>
-                      <th className="table-header text-center">Status</th>
-                      <th className="table-header text-right">Actions</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">Destination</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">Category</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">Duration</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">Price</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">Rating</th>
+                      <th className="px-6 py-3 text-center text-sm font-semibold">Status</th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="table-body">
+
+                  <tbody>
                     {destinations.map(destination => (
-                      <tr key={destination.id} className="border-b">
-                        <td className="table-body">
-                          <div className="title-content">
-                            <div className="title-name">{destination.title}</div>
-                            <div className="title-id">ID: {destination.id}</div>
-                          </div>
+                      <tr key={destination.id} className="border-b hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="font-medium">{destination.title}</div>
+                          <div className="text-xs text-gray-500">ID: {destination.id}</div>
                         </td>
-                        <td className="table-body">
-                          <span className="category-badge">
-                            {destination.category?.name}
-                          </span>
+
+                        <td className="px-6 py-4">
+                          {destination.category?.name}
                         </td>
-                        <td className="table-body">
-                          <div className="duration-display">
-                            {destination.duration}D / {destination.nights || (destination.duration - 1)}N
-                          </div>
+
+                        <td className="px-6 py-4">
+                          {destination.duration}D / {destination.nights || 0}N
                         </td>
-                        <td className="table-body">
-                          <div className="price-display">₹{destination.price.toLocaleString('en-IN')}</div>
+
+                        <td className="px-6 py-4 font-semibold">
+                          ₹{destination.price.toLocaleString('en-IN')}
                         </td>
-                        <td className="table-body">
-                          <div className="rating-display">
-                            <span className="rating-star">⭐</span>
-                            <span>{destination.rating || 'N/A'}</span>
-                          </div>
+
+                        <td className="px-6 py-4">
+                          ⭐ {destination.rating || 'N/A'}
                         </td>
-                        <td className="table-body text-center">
-                          <span className={`status-badge ${
-                            destination.isActive ? 'status-active' : 'status-inactive'
-                          }`}>
+
+                        <td className="px-6 py-4 text-center">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${destination.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                            }`}>
                             {destination.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td className="table-actions text-right">
-                          <button 
-                            onClick={() => openEditModal(destination)} 
-                            className="table-btn table-btn-edit"
+
+                        <td className="px-6 py-4 text-right space-x-2">
+                          <button
+                            onClick={() => openEditModal(destination)}
+                            className="px-3 py-1 bg-gray-200 rounded"
                           >
                             Edit
                           </button>
-                          <button 
-                            onClick={() => openViewModal(destination)} 
-                            className="table-btn table-btn-view"
+
+                          <button
+                            onClick={() => openViewModal(destination)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded"
                           >
                             View
                           </button>
-                          <button 
-                            onClick={() => handleDelete(destination.id)} 
-                            className="table-btn table-btn-delete"
+
+                          <button
+                            onClick={() => handleDelete(destination.id)}
+                            className="px-3 py-1 bg-red-500 text-white rounded"
                           >
                             Delete
                           </button>
@@ -354,6 +456,7 @@ export default function DestinationsPage() {
                   </tbody>
                 </table>
               </div>
+
             )
           )}
         </div>
@@ -374,40 +477,40 @@ export default function DestinationsPage() {
                 <div className="form-grid">
                   <div className="form-group">
                     <label className="form-label">Title *</label>
-                    <input type="text" className="form-input" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
+                    <input type="text" className="form-input" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} required />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Category *</label>
-                    <select className="form-select" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} required>
+                    <select className="form-select" value={formData.categoryId} onChange={e => setFormData({ ...formData, categoryId: e.target.value })} required>
                       <option value="">Select</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Price (₹) *</label>
-                    <input type="text" className="form-input" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
+                    <input type="text" className="form-input" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Duration (Days/Nights)</label>
                     <div className="flex gap-2">
-                      <input type="number" className="form-input" value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value) || 0})} placeholder="Days" />
-                      <input type="number" className="form-input" value={formData.nights} onChange={e => setFormData({...formData, nights: parseInt(e.target.value) || 0})} placeholder="Nights" />
+                      <input type="number" className="form-input" value={formData.duration} onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })} placeholder="Days" />
+                      <input type="number" className="form-input" value={formData.nights} onChange={e => setFormData({ ...formData, nights: parseInt(e.target.value) || 0 })} placeholder="Nights" />
                     </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Image URL</label>
-                    <input type="text" className="form-input" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
+                    <input type="text" className="form-input" value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Rating</label>
-                    <input type="number" className="form-input" value={formData.rating} onChange={e => setFormData({...formData, rating: parseFloat(e.target.value)})} step="0.1" max="5" />
+                    <input type="number" className="form-input" value={formData.rating} onChange={e => setFormData({ ...formData, rating: parseFloat(e.target.value) })} step="0.1" max="5" />
                   </div>
                 </div>
               </div>
 
               <div className="form-section">
                 <label className="form-label">Destination Description</label>
-                <textarea className="form-textarea" rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                <textarea className="form-textarea" rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
               </div>
 
               {/* Highlights */}
@@ -436,13 +539,13 @@ export default function DestinationsPage() {
                       <h4 className="font-bold">Day {i + 1}</h4>
                       <button type="button" onClick={() => {
                         const newDays = formData.days.filter((_, idx) => idx !== i);
-                        setFormData({...formData, days: newDays.length ? newDays : initialFormState.days});
+                        setFormData({ ...formData, days: newDays.length ? newDays : initialFormState.days });
                       }} className="text-red-500 text-sm">Remove Day</button>
                     </div>
                     <input type="text" placeholder="Day Title" className="form-input mb-2" value={day.title} onChange={e => updateDay(i, 'title', e.target.value)} />
                     <input type="text" placeholder="Day Image URL" className="form-input mb-2" value={day.image} onChange={e => updateDay(i, 'image', e.target.value)} />
                     <textarea placeholder="Description" className="form-textarea mb-2" rows={2} value={day.description} onChange={e => updateDay(i, 'description', e.target.value)} />
-                    
+
                     <div className="mt-2">
                       <div className="flex justify-between items-center mb-1">
                         <label className="text-xs font-bold uppercase text-gray-500">Activities</label>
