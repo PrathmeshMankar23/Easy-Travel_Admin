@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/utils/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,22 +16,23 @@ export default function LoginPage() {
     setIsLoading(true);
     setError('');
 
-    // Static login for demo purposes
-    setTimeout(() => {
-      if (email === 'admin@easytravels.com' && password === 'admin123') {
-        // Store mock user data
-        localStorage.setItem('adminToken', 'mock-jwt-token');
-        localStorage.setItem('adminUser', JSON.stringify({
-          id: '1',
-          email: 'admin@easytravels.com',
-          name: 'Admin User'
-        }));
-        router.push('/dashboard');
-      } else {
-        setError('Invalid email or password. Use admin@easytravels.com / admin123');
-      }
+    try {
+      const response = await api.login(email, password);
+      
+      // Store real user data and token
+      localStorage.setItem('adminToken', response.token);
+      localStorage.setItem('adminUser', JSON.stringify({
+        id: response.id,
+        username: response.username,
+        email: email
+      }));
+      
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

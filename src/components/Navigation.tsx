@@ -2,7 +2,6 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import ThemeToggle from './ThemeToggle';
 
 export default function Navigation() {
   const router = useRouter();
@@ -73,7 +72,6 @@ export default function Navigation() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <ThemeToggle />
               <span className="hidden sm:block text-sm text-secondary">
                 Welcome, {user?.name}
               </span>
@@ -116,7 +114,6 @@ export default function Navigation() {
           <div className="px-2 pt-2 pb-3 space-y-1">
             <div className="flex items-center justify-between px-3 py-2">
               <span className="text-sm text-secondary">Welcome, {user?.name}</span>
-              <ThemeToggle />
             </div>
             {navItems.map((item) => (
               <button

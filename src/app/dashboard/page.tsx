@@ -1,13 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import {
-  categoryStorage,
-  initializeStorage,
-  getItinerariesWithCategories
-} from '@/utils/storage';
+import { api } from '@/utils/api';
 
 interface Itinerary {
   id: string;
@@ -33,15 +29,6 @@ interface Itinerary {
   }[];
 }
 
-interface Activity {
-  id: string;
-  type: 'destination' | 'category';
-  action: 'added' | 'updated' | 'deleted';
-  title: string;
-  description: string;
-  timestamp: Date;
-}
-
 interface DashboardStats {
   totalDestinations: number;
   totalCategories: number;
@@ -57,59 +44,41 @@ export default function DashboardPage() {
     pendingInquiries: 0
   });
 
-  const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
 
   // =================================
-  // LOAD DATA (single source of truth)
+  // LOAD DATA FROM API
   // =================================
 
-  const loadData = () => {
+  const loadData = useCallback(async () => {
     try {
-      const its = getItinerariesWithCategories() ?? [];
-
-      const cats = categoryStorage.getCategories() || [];
-
-      setItineraries(its);
+      // Load real data from API
+      const [categories, destinations, enquiries] = await Promise.all([
+        api.getCategories(),
+        api.getDestinations(), 
+        api.getEnquiries()
+      ]);
 
       setStats({
-        totalDestinations: its.length,
-        totalCategories: cats.length,
+        totalDestinations: Array.isArray(destinations) ? destinations.length : 0,
+        totalCategories: Array.isArray(categories) ? categories.length : 0,
+        totalInquiries: Array.isArray(enquiries) ? enquiries.length : 0,
+        pendingInquiries: 0
+      });
+    } catch (error: any) {
+      console.error('Dashboard loading error:', error);
+      setStats({
+        totalDestinations: 0,
+        totalCategories: 0,
         totalInquiries: 0,
         pendingInquiries: 0
       });
-
-      // Load activities from localStorage
-      const storedActivities = localStorage.getItem('dashboardActivities');
-      if (storedActivities) {
-        setActivities(JSON.parse(storedActivities));
-      }
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const addActivity = (type: 'destination' | 'category', action: 'added' | 'updated' | 'deleted', title: string, description: string) => {
-    const newActivity: Activity = {
-      id: Date.now().toString(),
-      type,
-      action,
-      title,
-      description,
-      timestamp: new Date()
-    };
-
-    setActivities(prev => {
-      const updated = [newActivity, ...prev].slice(0, 10); // Keep only last 10 activities
-      localStorage.setItem('dashboardActivities', JSON.stringify(updated));
-      return updated;
-    });
-  };
+  }, []);
 
   // =================================
   // INIT
@@ -123,37 +92,8 @@ export default function DashboardPage() {
       return;
     }
 
-    initializeStorage();
     loadData();
-
-    const handleUpdate = () => {
-      loadData();
-    };
-
-    const handleStorageUpdate = (event: CustomEvent) => {
-      const { type, data } = event.detail;
-
-      if (type === 'itineraries') {
-        const action = data.length > itineraries.length ? 'added' : 'updated';
-        const latestItem = data[0]; // Most recent item
-        addActivity('destination', action, latestItem.title, `${action === 'added' ? 'New destination' : 'Destination updated'}: ${latestItem.title}`);
-      } else if (type === 'categories') {
-        const action = data.length > stats.totalCategories ? 'added' : 'updated';
-        const latestItem = data[0]; // Most recent item
-        addActivity('category', action, latestItem.name, `${action === 'added' ? 'New category' : 'Category updated'}: ${latestItem.name}`);
-      }
-
-      handleUpdate();
-    };
-
-    window.addEventListener('storage-updated', handleStorageUpdate as EventListener);
-    window.addEventListener('storage-updated', handleUpdate);
-
-    return () => {
-      window.removeEventListener('storage-updated', handleStorageUpdate as EventListener);
-      window.removeEventListener('storage-updated', handleUpdate);
-    };
-  }, [router, itineraries.length, stats.totalCategories]);
+  }, [loadData, router]);
 
   // =================================
   // UI (UNCHANGED)

@@ -1,173 +1,208 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import {
-  categoryStorage,
-  itineraryStorage,
-  initializeStorage
-} from '@/utils/storage';
+import { api } from '@/utils/api';
 
 interface Category {
   id: string;
   name: string;
+  slug?: string;
   isActive: boolean;
-  _count: {
-    itineraries: number;
+  _count?: {
+    destinations?: number;
+    itineraries?: number;
   };
 }
 
-interface Itinerary {
+interface DestinationForCategory {
   id: string;
   title: string;
   categoryId: string;
+  [key: string]: any;
 }
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+  const [destinationsInModal, setDestinationsInModal] = useState<DestinationForCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showItineraryModal, setShowItineraryModal] = useState(false);
 
-  const [selectedCategory, setSelectedCategory] =
-    useState<Category | null>(null);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    isActive: true
-  });
-
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [formData, setFormData] = useState({ name: '', isActive: true });
   const router = useRouter();
 
-  // =================================
-  // LOAD DATA (single source of truth)
-  // =================================
-
-  const loadCategories = () => {
-    const cats = categoryStorage.getCategories();
-    const its = itineraryStorage.getItineraries();
-
-    const categoriesWithCounts = cats.map((category) => ({
-      ...category,
-      _count: {
-        itineraries: its.filter((i) => i.categoryId === category.id).length
-      }
-    }));
-
-    setCategories(categoriesWithCounts);
-    setItineraries(its);
-    setIsLoading(false);
-  };
-
-  // =================================
-  // INIT
-  // =================================
+  const loadCategories = useCallback(async () => {
+    setApiError('');
+    try {
+      const data = await api.getCategories();
+      const mappedCategories = Array.isArray(data) ? data : [];
+      setCategories(mappedCategories);
+    } catch (e: any) {
+      setApiError(e?.message || 'Failed to load categories');
+      setCategories([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
-
     if (!token) {
       router.push('/login');
       return;
     }
-
-    initializeStorage();
     loadCategories();
+  }, [router, loadCategories]);
 
-    const handleUpdate = () => loadCategories();
-
-    window.addEventListener('storage-updated', handleUpdate);
-
-    return () =>
-      window.removeEventListener('storage-updated', handleUpdate);
-  }, [router]);
-
-  // =================================
-  // CRUD (clean + safe)
-  // =================================
-
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!formData.name.trim()) return;
-
-    categoryStorage.addCategory({
-      name: formData.name,
-      isActive: formData.isActive
-    });
-
-    loadCategories(); // ✅ only this
-
-    setFormData({ name: '', isActive: true });
-    setShowAddModal(false);
-  };
-
-  const handleEditCategory = () => {
-    if (!selectedCategory || !formData.name.trim()) return;
-
-    categoryStorage.updateCategory(selectedCategory.id, {
-      name: formData.name,
-      isActive: formData.isActive
-    });
-
-    loadCategories(); // ✅ only this
-
-    setShowEditModal(false);
-    setSelectedCategory(null);
-    setFormData({ name: '', isActive: true });
-  };
-
-  const handleDeleteCategory = (id: string) => {
-    const categoryItineraries = itineraries.filter(
-      (i) => i.categoryId === id
-    );
-
-    if (categoryItineraries.length > 0) {
-      if (
-        !confirm(
-          `This category has ${categoryItineraries.length} itineraries. Continue deleting?`
-        )
-      )
-        return;
-    } else {
-      if (!confirm('Are you sure you want to delete this category?')) return;
+    setApiError('');
+    try {
+      await api.createCategory({ name: formData.name.trim(), isActive: formData.isActive });
+      
+      // Emit activity for creation
+      window.dispatchEvent(new CustomEvent('storage-updated', {
+        detail: { 
+          type: 'activity', 
+          data: {
+            action: 'added',
+            type: 'category',
+            title: formData.name.trim(),
+            description: `Added new category: ${formData.name.trim()}`,
+            timestamp: new Date()
+          }
+        }
+      }));
+      
+      setFormData({ name: '', isActive: true });
+      setShowAddModal(false);
+      await loadCategories();
+    } catch (e: any) {
+      setApiError(e?.message || 'Failed to add category');
     }
+  };
 
-    categoryStorage.deleteCategory(id);
+  const handleEditCategory = async () => {
+    if (!selectedCategory || !formData.name.trim()) return;
+    setApiError('');
+    try {
+      await api.updateCategory(selectedCategory.id, { name: formData.name.trim(), isActive: formData.isActive });
+      
+      // Emit activity for update
+      window.dispatchEvent(new CustomEvent('storage-updated', {
+        detail: { 
+          type: 'activity', 
+          data: {
+            action: 'updated',
+            type: 'category',
+            title: formData.name.trim(),
+            description: `Updated category: ${formData.name.trim()}`,
+            timestamp: new Date()
+          }
+        }
+      }));
+      
+      setShowEditModal(false);
+      setSelectedCategory(null);
+      setFormData({ name: '', isActive: true });
+      await loadCategories();
+    } catch (e: any) {
+      setApiError(e?.message || 'Failed to update category');
+    }
+  };
 
-    loadCategories(); // ✅ only this
+  const handleDeleteCategory = async (id: string) => {
+    const cat = categories.find((c) => c.id === id);
+    const count = cat?._count?.destinations ?? cat?._count?.itineraries ?? 0;
+    if (count > 0 && !confirm(`This category has ${count} destinations. Continue deleting?`)) return;
+    if (count === 0 && !confirm('Are you sure you want to delete this category?')) return;
+    setApiError('');
+    try {
+      await api.deleteCategory(id);
+      
+      // Emit activity for deletion
+      if (cat) {
+        window.dispatchEvent(new CustomEvent('storage-updated', {
+          detail: { 
+            type: 'activity', 
+            data: {
+              action: 'deleted',
+              type: 'category',
+              title: cat.name,
+              description: `Deleted category: ${cat.name}`,
+              timestamp: new Date()
+            }
+          }
+        }));
+      }
+      
+      await loadCategories();
+    } catch (e: any) {
+      setApiError(e?.message || 'Failed to delete category');
+    }
   };
 
   const openEditModal = (category: Category) => {
     setSelectedCategory(category);
-    setFormData({
-      name: category.name,
-      isActive: category.isActive
-    });
+    setFormData({ name: category.name, isActive: category.isActive });
     setShowEditModal(true);
   };
 
-  const openItineraryModal = (category: Category) => {
+  const openItineraryModal = async (category: Category) => {
     setSelectedCategory(category);
     setShowItineraryModal(true);
-    loadCategories(); // refresh latest itineraries
+    setDestinationsInModal([]);
+    try {
+      const dests = await api.getDestinations();
+      setDestinationsInModal((dests || []).filter((d: any) => d.categoryId === category.id));
+    } catch {
+      setDestinationsInModal([]);
+    }
   };
 
-  const changeItineraryCategory = (
-    itineraryId: string,
-    newCategoryId: string
-  ) => {
-    itineraryStorage.updateItinerary(itineraryId, {
-      categoryId: newCategoryId
-    });
-
-    loadCategories(); // ✅ auto refresh counts
+  const changeDestinationCategory = async (destination: DestinationForCategory, newCategoryId: string) => {
+    if (destination.categoryId === newCategoryId) return;
+    try {
+      const payload = {
+        title: destination.title,
+        img: destination.img,
+        description: destination.description,
+        price: destination.price,
+        duration: destination.duration,
+        groupSize: destination.groupSize || 'Up to 15',
+        about: destination.about || destination.description,
+        categoryId: newCategoryId,
+        highlights: destination.highlights || [],
+        included: destination.included || [],
+        notIncluded: destination.notIncluded || [],
+        itinerary: (destination.itinerary || []).map((d: any) => ({
+          day: d.day,
+          title: d.title,
+          desc: d.desc,
+          image: d.image,
+          activities: d.activities || [],
+        })),
+      };
+      await api.updateDestination(destination.id, payload);
+      setDestinationsInModal((prev) =>
+        prev.map((d) => (d.id === destination.id ? { ...d, categoryId: newCategoryId } : d))
+      );
+      await loadCategories();
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update destination category');
+    }
   };
 
-  const getCategoryItineraries = (categoryId: string) =>
-    itineraries.filter((i) => i.categoryId === categoryId);
+  const getCategoryDestinations = (categoryId: string) =>
+    destinationsInModal.filter((d) => d.categoryId === categoryId);
+  const countLabel = (cat: Category) =>
+    (cat._count?.destinations ?? cat._count?.itineraries ?? 0);
 
   // =================================
   // UI (UNCHANGED — your CSS intact)
@@ -178,9 +213,7 @@ export default function CategoriesPage() {
       <div className="min-h-screen flex items-center justify-center bg-primary">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-600"></div>
-          <p className="text-secondary animate-pulse">
-            Loading Categories...
-          </p>
+          <p className="text-secondary animate-pulse">Loading Categories...</p>
         </div>
       </div>
     );
@@ -190,9 +223,12 @@ export default function CategoriesPage() {
     <div className="bg-primary min-h-screen">
       <Navigation />
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Page Header */}
+        {apiError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+            {apiError}
+          </div>
+        )}
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-primary">Manage Categories</h1>
@@ -267,16 +303,16 @@ export default function CategoriesPage() {
                             {category.isActive ? 'Active' : 'Inactive'}
                           </span>
                           <span className="text-sm text-secondary">
-                            {category._count.itineraries} itineraries
+                            {countLabel(category)} destinations
                           </span>
                         </div>
                       </div>
                       <button
                         onClick={() => openItineraryModal(category)}
                         className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                        disabled={category._count.itineraries === 0}
+                        disabled={countLabel(category) === 0}
                       >
-                        View Itineraries
+                        View destinations
                       </button>
                     </div>
                   </div>
@@ -391,14 +427,14 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {/* Itinerary Management Modal */}
+      {/* Destinations in category modal */}
       {showItineraryModal && selectedCategory && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-5 mx-auto p-5 border max-w-4xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="mt-3">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl leading-6 font-bold text-gray-900">
-                  Itineraries in "{selectedCategory.name}"
+                  Destinations in &quot;{selectedCategory.name}&quot;
                 </h3>
                 <button
                   onClick={() => setShowItineraryModal(false)}
@@ -411,22 +447,22 @@ export default function CategoriesPage() {
               </div>
 
               <div className="space-y-4">
-                {getCategoryItineraries(selectedCategory.id).length === 0 ? (
+                {getCategoryDestinations(selectedCategory.id).length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">No itineraries in this category</p>
+                    <p className="text-gray-500">No destinations in this category</p>
                   </div>
                 ) : (
-                  getCategoryItineraries(selectedCategory.id).map((itinerary) => (
-                    <div key={itinerary.id} className="border border-gray-200 rounded-lg p-4">
+                  getCategoryDestinations(selectedCategory.id).map((dest) => (
+                    <div key={dest.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium text-gray-900">{itinerary.title}</h4>
-                          <p className="text-sm text-gray-500">Current category: {selectedCategory.name}</p>
+                          <h4 className="font-medium text-gray-900">{dest.title}</h4>
+                          <p className="text-sm text-gray-500">Category: {selectedCategory.name}</p>
                         </div>
                         <div className="flex items-center space-x-3">
                           <select
-                            value={itinerary.categoryId}
-                            onChange={(e) => changeItineraryCategory(itinerary.id, e.target.value)}
+                            value={dest.categoryId}
+                            onChange={(e) => changeDestinationCategory(dest, e.target.value)}
                             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             {categories.map((cat) => (
@@ -435,9 +471,6 @@ export default function CategoriesPage() {
                               </option>
                             ))}
                           </select>
-                          <span className="text-sm text-green-600 font-medium">
-                            ✓ Updated
-                          </span>
                         </div>
                       </div>
                     </div>

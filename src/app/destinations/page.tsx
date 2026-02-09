@@ -3,22 +3,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import {
-  categoryStorage,
-  itineraryStorage,
-  getItinerariesWithCategories,
-  initializeStorage
-} from '@/utils/storage';
+import { api } from '@/utils/api';
 
 interface Destination {
   id: string;
   title: string;
   description: string;
-  duration: number;
+  duration: number | string;
   nights?: number;
-  price: number;
+  price: number | string;
   image?: string;
-  isActive: boolean;
+  img?: string;
+  isActive?: boolean;
   rating?: number;
   categoryId?: string;
   category: {
@@ -28,12 +24,44 @@ interface Destination {
   highlights?: string[];
   included?: string[];
   notIncluded?: string[];
+  itinerary?: { day: number; title: string; desc: string; image?: string; activities: string[] }[];
   days?: {
     title: string;
     image: string;
     description: string;
+    desc?: string;
     activities: string[];
   }[];
+}
+
+function mapApiToDestination(d: any): Destination {
+  const img = d.img || d.image;
+  const days = (d.itinerary || []).map((day: any) => ({
+    title: day.title || '',
+    image: day.image || '',
+    description: day.desc || '',
+    activities: Array.isArray(day.activities) ? day.activities : [],
+  }));
+  const durationNum = Number(d.duration);
+  const nightsNum = d.nights != null ? Number(d.nights) : 0;
+  const ratingNum = Number(d.rating);
+  return {
+    id: d.id,
+    title: d.title,
+    description: d.description || '',
+    duration: Number.isNaN(durationNum) ? 0 : durationNum,
+    nights: Number.isNaN(nightsNum) ? 0 : nightsNum,
+    price: typeof d.price === 'string' ? d.price : String(d.price ?? 0),
+    image: img,
+    img,
+    rating: Number.isNaN(ratingNum) ? 0 : ratingNum,
+    categoryId: d.categoryId,
+    category: d.category || { id: d.categoryId, name: '' },
+    highlights: d.highlights || [],
+    included: d.included || [],
+    notIncluded: d.notIncluded || [],
+    days: days.length ? days : [{ title: '', image: '', description: '', activities: [''] }],
+  };
 }
 
 export default function DestinationsPage() {
@@ -81,18 +109,25 @@ export default function DestinationsPage() {
 
   const [formData, setFormData] = useState(initialFormState);
 
-  // =================================
-  // LOAD DATA
-  // =================================
+  // Safe value for number inputs – never pass NaN to React (fixes console error)
+  const safeNum = (n: unknown): string => {
+    const num = Number(n);
+    if (n === undefined || n === null || Number.isNaN(num)) return '';
+    return String(num);
+  };
 
-  const loadData = useCallback(() => {
-    initializeStorage();
-    setCategories(categoryStorage.getCategories());
-    const destinationsWithCategories = getItinerariesWithCategories();
-    console.log('Destinations with categories:', destinationsWithCategories);
-    console.log('Categories available:', categoryStorage.getCategories());
-    setDestinations(destinationsWithCategories);
-    setIsLoading(false);
+  const loadData = useCallback(async () => {
+    try {
+      const [cats, dests] = await Promise.all([api.getCategories(), api.getDestinations()]);
+      setCategories(Array.isArray(cats) ? cats : []);
+      const mappedDestinations = (Array.isArray(dests) ? dests : []).map(mapApiToDestination);
+      setDestinations(mappedDestinations);
+    } catch (e) {
+      setCategories([]);
+      setDestinations([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   const openViewModal = useCallback((destination: Destination) => {
@@ -100,98 +135,133 @@ export default function DestinationsPage() {
     setShowViewModal(true);
   }, []);
 
-  // =================================
-  // INIT
-  // =================================
-
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) {
       router.push('/login');
       return;
     }
-    initializeStorage();
     loadData();
+  }, [router, loadData]);
 
-    // Listen for storage updates from other components
-    const handleStorageUpdate = () => {
-      loadData();
-    };
-
-    window.addEventListener('storage-updated', handleStorageUpdate);
-
-    return () => {
-      window.removeEventListener('storage-updated', handleStorageUpdate);
-    };
-  }, [router]);
-
-  // Separate effect for handling URL parameters
   useEffect(() => {
     if (destinations.length > 0) {
       const urlParams = new URLSearchParams(window.location.search);
       const destinationId = urlParams.get('id');
       if (destinationId) {
-        const destination = destinations.find(d => d.id === destinationId);
-        if (destination) {
-          openViewModal(destination);
-        }
+        const destination = destinations.find((d) => d.id === destinationId);
+        if (destination) openViewModal(destination);
       }
     }
   }, [destinations, openViewModal]);
 
-  // =================================
-  // CRUD
-  // =================================
-
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this destination?')) return;
-
-    itineraryStorage.deleteItinerary(id);
-
-    // ❌ no manual dispatch
-    // ❌ no manual filtering
-
-    loadData();
+    try {
+      // Find destination to get title for activity
+      const destinationToDelete = destinations.find(d => d.id === id);
+      
+      await api.deleteDestination(id);
+      
+      // Emit activity for deletion
+      if (destinationToDelete) {
+        window.dispatchEvent(new CustomEvent('storage-updated', {
+          detail: { 
+            type: 'activity', 
+            data: {
+              action: 'deleted',
+              type: 'destination',
+              title: destinationToDelete.title,
+              description: `Deleted destination: ${destinationToDelete.title}`,
+              timestamp: new Date()
+            }
+          }
+        }));
+      }
+      
+      await loadData();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to delete destination');
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const buildBackendPayload = () => {
+    const priceVal = formData.price.toString().replace(/[^0-9]/g, '') || '0';
+    const itinerary = formData.days
+      .filter((d) => d.title.trim() || d.description.trim())
+      .map((d, i) => ({
+        day: i + 1,
+        title: d.title,
+        desc: d.description,
+        image: d.image,
+        activities: Array.isArray(d.activities) ? d.activities.filter((a) => String(a).trim() !== '') : [],
+      }));
+    if (itinerary.length === 0) itinerary.push({ day: 1, title: '', desc: '', image: '', activities: [] });
+    return {
+      title: formData.title,
+      img: formData.image,
+      description: formData.description,
+      price: priceVal,
+      duration: String(formData.duration || 0),
+      nights: Number(formData.nights || 0),
+      groupSize: 'Up to 15',
+      about: formData.description,
+      categoryId: formData.categoryId,
+      highlights: formData.highlights.filter((h) => h.trim() !== ''),
+      included: formData.included.filter((i) => i.trim() !== ''),
+      notIncluded: formData.notIncluded.filter((n) => n.trim() !== ''),
+      itinerary,
+    };
+  };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!formData.title || !formData.categoryId || !formData.price) {
       alert('Please fill required fields');
       return;
     }
-
-    const destinationData = {
-      ...formData,
-      duration: parseInt(formData.duration.toString()),
-      nights: parseInt(formData.nights.toString()) || 0,
-      price: parseInt(formData.price.toString().replace(/[^0-9]/g, '')),
-      isActive: true,
-      highlights: formData.highlights.filter(h => h.trim() !== ''),
-      included: formData.included.filter(i => i.trim() !== ''),
-      notIncluded: formData.notIncluded.filter(n => n.trim() !== ''),
-    };
-
-    if (editingDestination) {
-      itineraryStorage.updateItinerary(editingDestination.id, destinationData);
-    } else {
-      itineraryStorage.addItinerary(destinationData);
-    }
-
-    // Trigger storage update event to notify other pages
-    window.dispatchEvent(new CustomEvent('storage-updated', {
-      detail: {
-        type: 'itineraries',
-        data: itineraryStorage.getItineraries()
+    try {
+      const payload = buildBackendPayload();
+      if (editingDestination) {
+        await api.updateDestination(editingDestination.id, payload);
+        
+        // Emit activity for update
+        window.dispatchEvent(new CustomEvent('storage-updated', {
+          detail: { 
+            type: 'activity', 
+            data: {
+              action: 'updated',
+              type: 'destination',
+              title: formData.title,
+              description: `Updated destination: ${formData.title}`,
+              timestamp: new Date()
+            }
+          }
+        }));
+      } else {
+        await api.createDestination(payload);
+        
+        // Emit activity for creation
+        window.dispatchEvent(new CustomEvent('storage-updated', {
+          detail: { 
+            type: 'activity', 
+            data: {
+              action: 'added',
+              type: 'destination',
+              title: formData.title,
+              description: `Added new destination: ${formData.title}`,
+              timestamp: new Date()
+            }
+          }
+        }));
       }
-    }));
-
-    loadData();
-
-    setFormData(initialFormState);
-    setShowAddModal(false);
-    setEditingDestination(null);
+      setFormData(initialFormState);
+      setShowAddModal(false);
+      setEditingDestination(null);
+      await loadData();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to save destination');
+    }
   };
 
   // Day Management Functions
@@ -279,16 +349,19 @@ export default function DestinationsPage() {
   const openEditModal = (destination: Destination) => {
     setEditingDestination(destination);
 
+    const dur = Number(destination.duration);
+    const nts = Number(destination.nights);
+    const rat = Number(destination.rating);
     setFormData({
       id: destination.id,
       title: destination.title,
       description: destination.description,
       categoryId: destination.category?.id || '',
-      duration: destination.duration,
-      nights: destination.nights || 0,
+      duration: Number.isNaN(dur) ? 0 : dur,
+      nights: Number.isNaN(nts) ? 0 : nts,
       price: destination.price.toString(),
       image: destination.image || '',
-      rating: destination.rating || 0,
+      rating: Number.isNaN(rat) ? 0 : rat,
 
       highlights:
         destination.highlights?.length
@@ -357,7 +430,7 @@ export default function DestinationsPage() {
                     <div className="card-image-container">
                       <img src={destination.image || 'https://images.unsplash.com/photo-1469474968028-5669f8e4b82?w=500&h=300&fit=crop'} alt={destination.title} className="card-image" />
                       <div className="category-badge">{destination.category?.name}</div>
-                      <div className="duration-badge"><span>{destination.duration}D / {destination.nights || (destination.duration - 1)}N</span></div>
+                      <div className="duration-badge"><span>{destination.duration}D / {(destination.nights || 0)}N</span></div>
                     </div>
                     <div className="card-content">
                       <div className="card-header">
@@ -368,7 +441,7 @@ export default function DestinationsPage() {
                           </div>
                         </div>
                         <div className="card-price-section">
-                          <div className="card-price">₹{destination.price.toLocaleString('en-IN')}</div>
+                          <div className="card-price">₹{Number(destination.price).toLocaleString('en-IN')}</div>
                         </div>
                       </div>
 
@@ -413,7 +486,7 @@ export default function DestinationsPage() {
                         </td>
 
                         <td className="px-6 py-4 font-semibold">
-                          ₹{destination.price.toLocaleString('en-IN')}
+                          ₹{Number(destination.price).toLocaleString('en-IN')}
                         </td>
 
                         <td className="px-6 py-4">
@@ -477,40 +550,40 @@ export default function DestinationsPage() {
                 <div className="form-grid">
                   <div className="form-group">
                     <label className="form-label">Title *</label>
-                    <input type="text" className="form-input" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} required />
+                    <input type="text" className="form-input" value={formData.title ?? ''} onChange={e => setFormData({ ...formData, title: e.target.value })} required />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Category *</label>
-                    <select className="form-select" value={formData.categoryId} onChange={e => setFormData({ ...formData, categoryId: e.target.value })} required>
+                    <select className="form-select" value={formData.categoryId ?? ''} onChange={e => setFormData({ ...formData, categoryId: e.target.value })} required>
                       <option value="">Select</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Price (₹) *</label>
-                    <input type="text" className="form-input" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                    <input type="text" className="form-input" value={formData.price ?? ''} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Duration (Days/Nights)</label>
                     <div className="flex gap-2">
-                      <input type="number" className="form-input" value={formData.duration} onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })} placeholder="Days" />
-                      <input type="number" className="form-input" value={formData.nights} onChange={e => setFormData({ ...formData, nights: parseInt(e.target.value) || 0 })} placeholder="Nights" />
+                      <input type="number" className="form-input" value={safeNum(formData.duration)} onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value, 10) || 0 })} placeholder="Days" />
+                      <input type="number" className="form-input" value={safeNum(formData.nights)} onChange={e => setFormData({ ...formData, nights: parseInt(e.target.value, 10) || 0 })} placeholder="Nights" />
                     </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Image URL</label>
-                    <input type="text" className="form-input" value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} />
+                    <input type="text" className="form-input" value={formData.image ?? ''} onChange={e => setFormData({ ...formData, image: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Rating</label>
-                    <input type="number" className="form-input" value={formData.rating} onChange={e => setFormData({ ...formData, rating: parseFloat(e.target.value) })} step="0.1" max="5" />
+                    <input type="number" className="form-input" value={safeNum(formData.rating)} onChange={e => setFormData({ ...formData, rating: parseFloat(e.target.value) || 0 })} step="0.1" max="5" />
                   </div>
                 </div>
               </div>
 
               <div className="form-section">
                 <label className="form-label">Destination Description</label>
-                <textarea className="form-textarea" rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                <textarea className="form-textarea" rows={3} value={formData.description ?? ''} onChange={e => setFormData({ ...formData, description: e.target.value })} />
               </div>
 
               {/* Highlights */}
@@ -521,7 +594,7 @@ export default function DestinationsPage() {
                 </div>
                 {formData.highlights.map((h, i) => (
                   <div key={i} className="array-item-container flex gap-2 mb-2">
-                    <input type="text" className="form-input" value={h} onChange={e => updateArrayItem('highlights', i, e.target.value)} />
+                    <input type="text" className="form-input" value={h ?? ''} onChange={e => updateArrayItem('highlights', i, e.target.value)} />
                     <button type="button" onClick={() => removeArrayItem('highlights', i)} className="btn btn-danger">×</button>
                   </div>
                 ))}
@@ -542,9 +615,9 @@ export default function DestinationsPage() {
                         setFormData({ ...formData, days: newDays.length ? newDays : initialFormState.days });
                       }} className="text-red-500 text-sm">Remove Day</button>
                     </div>
-                    <input type="text" placeholder="Day Title" className="form-input mb-2" value={day.title} onChange={e => updateDay(i, 'title', e.target.value)} />
-                    <input type="text" placeholder="Day Image URL" className="form-input mb-2" value={day.image} onChange={e => updateDay(i, 'image', e.target.value)} />
-                    <textarea placeholder="Description" className="form-textarea mb-2" rows={2} value={day.description} onChange={e => updateDay(i, 'description', e.target.value)} />
+                    <input type="text" placeholder="Day Title" className="form-input mb-2" value={day.title ?? ''} onChange={e => updateDay(i, 'title', e.target.value)} />
+                    <input type="text" placeholder="Day Image URL" className="form-input mb-2" value={day.image ?? ''} onChange={e => updateDay(i, 'image', e.target.value)} />
+                    <textarea placeholder="Description" className="form-textarea mb-2" rows={2} value={day.description ?? ''} onChange={e => updateDay(i, 'description', e.target.value)} />
 
                     <div className="mt-2">
                       <div className="flex justify-between items-center mb-1">
@@ -553,7 +626,7 @@ export default function DestinationsPage() {
                       </div>
                       {day.activities.map((act, actIdx) => (
                         <div key={actIdx} className="flex gap-2 mb-1">
-                          <input type="text" className="form-input text-sm" value={act} onChange={e => updateActivity(i, actIdx, e.target.value)} />
+                          <input type="text" className="form-input text-sm" value={act ?? ''} onChange={e => updateActivity(i, actIdx, e.target.value)} />
                           <button type="button" onClick={() => removeActivity(i, actIdx)} className="text-red-500">×</button>
                         </div>
                       ))}
@@ -570,7 +643,7 @@ export default function DestinationsPage() {
                 </div>
                 {formData.included.map((item, i) => (
                   <div key={i} className="array-item-container flex gap-2 mb-2">
-                    <input type="text" className="form-input" value={item} onChange={e => updateArrayItem('included', i, e.target.value)} placeholder="Enter included item..." />
+                    <input type="text" className="form-input" value={item ?? ''} onChange={e => updateArrayItem('included', i, e.target.value)} placeholder="Enter included item..." />
                     <button type="button" onClick={() => removeArrayItem('included', i)} className="btn btn-danger">×</button>
                   </div>
                 ))}
@@ -584,7 +657,7 @@ export default function DestinationsPage() {
                 </div>
                 {formData.notIncluded.map((item, i) => (
                   <div key={i} className="array-item-container flex gap-2 mb-2">
-                    <input type="text" className="form-input" value={item} onChange={e => updateArrayItem('notIncluded', i, e.target.value)} placeholder="Enter not included item..." />
+                    <input type="text" className="form-input" value={item ?? ''} onChange={e => updateArrayItem('notIncluded', i, e.target.value)} placeholder="Enter not included item..." />
                     <button type="button" onClick={() => removeArrayItem('notIncluded', i)} className="btn btn-danger">×</button>
                   </div>
                 ))}
@@ -606,7 +679,7 @@ export default function DestinationsPage() {
             {/* Header with Image */}
             <div className="relative h-80">
               <img src={selectedDestination.image || 'https://images.unsplash.com/photo-1469474968028-5669f8e4b82?w=800&h=400&fit=crop'} className="w-full h-full object-cover" alt={selectedDestination.title} />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+              <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent"></div>
               <button onClick={() => setShowViewModal(false)} className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-white transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -616,13 +689,13 @@ export default function DestinationsPage() {
                 <h1 className="text-4xl font-bold mb-2">{selectedDestination.title}</h1>
                 <div className="flex items-center gap-4 text-lg">
                   <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                    🕒 {selectedDestination.duration}D / {selectedDestination.nights || (selectedDestination.duration - 1)}N
+                    🕒 {selectedDestination.duration}D / {(selectedDestination.nights || 0)}N
                   </span>
                   <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
                     📂 {selectedDestination.category?.name}
                   </span>
                   <span className="bg-green-500/80 backdrop-blur-sm px-3 py-1 rounded-full font-bold">
-                    ₹{selectedDestination.price.toLocaleString('en-IN')}
+                    ₹{Number(selectedDestination.price).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>

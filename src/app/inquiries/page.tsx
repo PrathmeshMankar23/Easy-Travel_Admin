@@ -1,21 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
+import { api } from '@/utils/api';
 
 interface Inquiry {
   id: string;
   name: string;
+  customerName?: string;
   email: string;
   phone?: string;
   message: string;
   status: 'PENDING' | 'RESPONDED' | 'RESOLVED';
   response?: string;
   createdAt: string;
-  itinerary?: {
-    id: string;
-    title: string;
+  itinerary?: { id: string; title: string };
+  destination?: { id: string; title: string };
+}
+
+function mapApiToInquiry(row: any): Inquiry {
+  return {
+    id: row.id,
+    name: row.customerName || row.name || '',
+    email: row.email,
+    phone: row.phone,
+    message: row.message || '',
+    status: 'PENDING',
+    createdAt: row.createdAt,
+    itinerary: row.destination ? { id: row.destination.id, title: row.destination.title } : undefined,
+    destination: row.destination,
   };
 }
 
@@ -25,7 +39,23 @@ export default function InquiriesPage() {
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [responseText, setResponseText] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
+  const [apiError, setApiError] = useState('');
   const router = useRouter();
+
+  const loadEnquiries = useCallback(async () => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    setApiError('');
+    try {
+      const data = await api.getEnquiries();
+      setInquiries((Array.isArray(data) ? data : []).map(mapApiToInquiry));
+    } catch (e: any) {
+      setApiError(e?.message || 'Failed to load enquiries');
+      setInquiries([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -33,65 +63,34 @@ export default function InquiriesPage() {
       router.push('/login');
       return;
     }
-
-    // Use mock data
-    setTimeout(() => {
-      setInquiries([
-        {
-          id: '1',
-          name: 'John Doe',
-          email: 'john.doe@example.com',
-          phone: '+1234567890',
-          message: 'I am interested in the Mountain Adventure Trek. Can you provide more details about the difficulty level and required equipment?',
-          status: 'PENDING',
-          createdAt: new Date().toISOString(),
-          itinerary: {
-            id: '1',
-            title: 'Mountain Adventure Trek'
-          }
-        },
-        {
-          id: '2',
-          name: 'Jane Smith',
-          email: 'jane.smith@example.com',
-          message: 'I would like to know if the beach resort is family-friendly and what activities are available for children.',
-          status: 'RESPONDED',
-          response: 'Thank you for your inquiry! Our beach resort is very family-friendly with dedicated kids clubs, shallow swimming areas, and family activities.',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          itinerary: {
-            id: '2',
-            title: 'Tropical Paradise Beach Resort'
-          }
-        },
-        {
-          id: '3',
-          name: 'Mike Johnson',
-          email: 'mike.johnson@example.com',
-          message: 'What is the cancellation policy for the cultural tour?',
-          status: 'RESOLVED',
-          response: 'Our cancellation policy allows free cancellation up to 48 hours before departure. After that, a 25% fee applies.',
-          createdAt: new Date(Date.now() - 172800000).toISOString()
-        }
-      ]);
-      setIsLoading(false);
-    }, 1000);
-  }, [router]);
+    loadEnquiries();
+  }, [router, loadEnquiries]);
 
   const handleSendResponse = async () => {
     if (!selectedInquiry || !responseText.trim()) return;
-
     setIsSendingResponse(true);
-    setTimeout(() => {
-      setInquiries(inquiries.map(inquiry => 
-        inquiry.id === selectedInquiry.id 
+    // Backend does not store response text; you could add an endpoint later.
+    setInquiries((prev) =>
+      prev.map((inquiry) =>
+        inquiry.id === selectedInquiry.id
           ? { ...inquiry, status: 'RESPONDED' as const, response: responseText }
           : inquiry
-      ));
-      setSelectedInquiry(null);
-      setResponseText('');
-      setIsSendingResponse(false);
-      alert('Response sent successfully!');
-    }, 1000);
+      )
+    );
+    setSelectedInquiry(null);
+    setResponseText('');
+    setIsSendingResponse(false);
+    alert('Response noted. (Email reply can be done from your mail client.)');
+  };
+
+  const handleDeleteInquiry = async (id: string) => {
+    if (!confirm('Delete this enquiry?')) return;
+    try {
+      await api.deleteEnquiry(id);
+      await loadEnquiries();
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete');
+    }
   };
 
   const getStatusClass = (status: string) => {
@@ -118,10 +117,13 @@ export default function InquiriesPage() {
   return (
     <div className="bg-primary min-h-screen">
       <Navigation />
-      
-      {/* Main Content */}
+
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Page Header */}
+        {apiError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+            {apiError}
+          </div>
+        )}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary">Customer Inquiries</h1>
           <p className="mt-2 text-secondary">Manage and respond to customer questions</p>
@@ -173,8 +175,10 @@ export default function InquiriesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-primary">{inquiry.email}</div>
-                          {inquiry.itinerary && (
-                            <div className="text-sm text-secondary">Re: {inquiry.itinerary.title}</div>
+                          {(inquiry.itinerary || inquiry.destination) && (
+                            <div className="text-sm text-secondary">
+                              Re: {(inquiry.itinerary || inquiry.destination)?.title}
+                            </div>
                           )}
                         </td>
                         <td className="px-6 py-4">
@@ -190,12 +194,18 @@ export default function InquiriesPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                           {new Date(inquiry.createdAt).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                           <button
                             onClick={() => setSelectedInquiry(inquiry)}
                             className="text-blue-600 hover:text-blue-800"
                           >
                             {inquiry.status === 'PENDING' ? 'Respond' : 'View'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteInquiry(inquiry.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            Delete
                           </button>
                         </td>
                       </tr>

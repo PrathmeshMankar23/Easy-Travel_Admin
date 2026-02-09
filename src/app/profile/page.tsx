@@ -52,19 +52,6 @@ export default function ProfilePage() {
     setEditMode(false);
   };
 
-  const handleCancelEdit = () => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '+91 98765 43210',
-        role: user.role || 'Administrator',
-        department: user.department || 'Travel Management'
-      });
-    }
-    setEditMode(false);
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-primary">
@@ -201,14 +188,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="flex justify-end space-x-4 pt-4 border-t">
-                      <button
-                        type="button"
-                        onClick={handleCancelEdit}
-                        className="btn btn-secondary"
-                      >
-                        Cancel
-                      </button>
+                    <div className="flex justify-end pt-4 border-t">
                       <button
                         type="button"
                         onClick={handleSaveProfile}
@@ -244,35 +224,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Security Settings */}
-            <div className="card mt-6">
-              <div className="card-header">
-                <h3 className="text-lg font-medium text-gray-900">Security Settings</h3>
-              </div>
-              <div className="card-body">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Change Password</h4>
-                      <p className="text-sm text-gray-500">Update your password regularly to keep your account secure</p>
-                    </div>
-                    <button className="btn btn-sm">
-                      Change Password
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Two-Factor Authentication</h4>
-                      <p className="text-sm text-gray-500">Add an extra layer of security to your account</p>
-                    </div>
-                    <button className="btn btn-sm">
-                      Enable 2FA
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

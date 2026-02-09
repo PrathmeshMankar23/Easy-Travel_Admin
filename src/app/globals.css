@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* ===== COLOR PALETTE ===== */
 :root {
@@ -253,37 +255,12 @@ div {
   background-color: #f1f5f9 !important;
   color: #000000 !important;
   border-color: #e2e8f0 !important;
-  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-  color: #374151;
-  border: 1px solid #cbd5e1;
   padding: 0.75rem 1rem;
   border-radius: 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-}
-
-.btn-secondary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  transition: left 0.3s ease;
-  z-index: 0;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-}
-
-.btn-secondary:hover::before {
-  left: 0;
-}
-
-.btn-secondary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
 }
 
 .btn-success {
@@ -329,31 +306,8 @@ div {
   background-color: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   position: relative;
-}
-
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.card:hover::before {
-  opacity: 1;
-}
-
-.card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 .card-header {
@@ -762,51 +716,13 @@ div {
   border-radius: 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  position: relative;
   overflow: hidden;
 }
 
-.card-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  transition: left 0.3s ease;
-  z-index: 0;
-}
 
-.card-btn:hover::before {
-  left: 0;
-}
-
-.card-btn svg {
-  position: relative;
-  z-index: 1;
-}
-
-.card-btn span {
-  position: relative;
-  z-index: 1;
-}
-
-/* Card Included/Not Included Sections */
-.card-included,
-.card-not-included {
-  margin: 1rem 0;
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  background: rgba(248, 250, 252, 0.8);
-  border: 1px solid rgba(226, 232, 240, 0.6);
-}
 
 .card-section-title {
   font-size: 0.875rem;
@@ -862,45 +778,16 @@ div {
   border: 1px solid var(--color-secondary-300);
 }
 
-.card-btn-edit::before {
-  background: var(--color-secondary-100);
-}
-
-.card-btn-edit:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
-}
-
 .card-btn-view {
-  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  background: var(--color-primary-500);
   color: var(--color-white);
   border: 1px solid var(--color-primary-500);
-  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
-}
-
-.card-btn-view::before {
-  background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-700));
-}
-
-.card-btn-view:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 15px 30px -10px rgba(14, 165, 233, 0.4);
 }
 
 .card-btn-delete {
   background: #dc2626;
   color: var(--color-white);
   border: 1px solid #dc2626;
-  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
-}
-
-.card-btn-delete::before {
-  background: #b91c1c;
-}
-
-.card-btn-delete:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px rgba(220, 38, 38, 0.2);
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
