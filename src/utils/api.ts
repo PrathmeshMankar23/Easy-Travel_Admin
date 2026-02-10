@@ -1,4 +1,20 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://easy-travels-backend.onrender.com/api';
+
+// Debug: Log the API URL being used
+console.log('API Base URL:', API_BASE_URL);
+
+// Test connectivity to backend
+export const testConnectivity = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET'
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Backend connectivity test failed:', error);
+    return false;
+  }
+};
 
 export const api = {
   // Auth endpoints
@@ -21,12 +37,24 @@ export const api = {
 
   // Categories endpoints
   getCategories: async () => {
-    const response = await fetch(`${API_BASE_URL}/categories`);
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || err.message || "Failed to fetch categories");
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || err.message || "Failed to fetch categories");
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Categories API Error:', error);
+      // Return empty array as fallback for any network issues
+      return [];
     }
-    return response.json();
   },
 
   createCategory: async (categoryData: any) => {
@@ -78,12 +106,45 @@ export const api = {
 
   // Destinations endpoints
   getDestinations: async () => {
-    const response = await fetch(`${API_BASE_URL}/destinations`);
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || err.message || "Failed to fetch destinations");
+    try {
+      const response = await fetch(`${API_BASE_URL}/destinations`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || err.message || "Failed to fetch destinations");
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Destinations API Error:', error);
+      // Return empty array as fallback for any network issues
+      return [];
     }
-    return response.json();
+  },
+
+  getDestinationsByCategory: async (categoryId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/destinations?categoryId=${categoryId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || err.message || "Failed to fetch destinations by category");
+      }
+      return response.json();
+    } catch (error) {
+      console.error(`Destinations by Category API Error (${categoryId}):`, error);
+      // Return empty array as fallback
+      return [];
+    }
   },
 
   createDestination: async (destinationData: any) => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Navigation from '@/components/Navigation';
+import DashboardLayout from '@/components/DashboardLayout';
 import { api } from '@/utils/api';
 
 interface Destination {
@@ -122,9 +122,151 @@ export default function DestinationsPage() {
       setCategories(Array.isArray(cats) ? cats : []);
       const mappedDestinations = (Array.isArray(dests) ? dests : []).map(mapApiToDestination);
       setDestinations(mappedDestinations);
+      
+      // Cache data for categories page
+      localStorage.setItem('cachedCategories', JSON.stringify(Array.isArray(cats) ? cats : []));
+      localStorage.setItem('cachedDestinations', JSON.stringify(Array.isArray(dests) ? dests : []));
+      console.log('✅ Cached data for categories page');
+      
     } catch (e) {
-      setCategories([]);
-      setDestinations([]);
+      console.error('❌ API failed, using demo data for UI testing');
+      // Use demo data when API fails to allow UI testing
+      const demoCategories = [
+        { id: 'cat1', name: 'Beaches', isActive: true },
+        { id: 'cat2', name: 'Mountains', isActive: true },
+        { id: 'cat3', name: 'Cities', isActive: true }
+      ];
+      
+      const demoDestinations = [
+        {
+          id: 'dest1',
+          title: 'Sunny Beach Resort',
+          description: 'A beautiful beachfront resort with crystal clear waters and white sand beaches. Perfect for relaxation and water sports.',
+          duration: 5,
+          nights: 4,
+          price: 25000,
+          categoryId: 'cat1',
+          category: demoCategories[0],
+          image: 'https://images.unsplash.com/photo-1506905925346-56b1e46b7554?w=1200&h=600&fit=crop',
+          isActive: true,
+          highlights: ['Beach Access', 'Water Sports', 'Spa Services', 'Ocean View Rooms'],
+          included: ['Daily Breakfast', 'Airport Transfer', 'Beach Umbrella', 'Towel Service'],
+          days: [
+            {
+              title: 'Arrival & Beach Day',
+              description: 'Welcome to paradise! Check in, relax on the beach, enjoy welcome dinner.',
+              image: 'https://images.unsplash.com/photo-1506905925346-56b1e46b7554?w=800&h=400&fit=crop',
+              activities: ['Beach Walk', 'Swimming', 'Sunset Watching', 'Welcome Dinner']
+            },
+            {
+              title: 'Water Sports Adventure',
+              description: 'Full day of exciting water activities including snorkeling, jet skiing, and parasailing.',
+              image: 'https://images.unsplash.com/photo-1506905925346-56b1e46b7554?w=800&h=400&fit=crop',
+              activities: ['Snorkeling', 'Jet Ski', 'Parasailing', 'Beach Volleyball', 'Lunch']
+            },
+            {
+              title: 'Relaxation & Spa',
+              description: 'Indulge in spa treatments and relaxation by the pool with ocean views.',
+              image: 'https://images.unsplash.com/photo-1506905925346-56b1e46b7554?w=800&h=400&fit=crop',
+              activities: ['Spa Treatment', 'Pool Relaxation', 'Massage Therapy', 'Healthy Lunch']
+            },
+            {
+              title: 'Departure Day',
+              description: 'Final beach breakfast, souvenir shopping, and departure to airport.',
+              image: 'https://images.unsplash.com/photo-1506905925346-56b1e46b7554?w=800&h=400&fit=crop',
+              activities: ['Breakfast', 'Souvenir Shopping', 'Check-out']
+            }
+          ]
+        },
+        {
+          id: 'dest2',
+          title: 'Mountain Peak Trek',
+          description: 'Challenging mountain trek with breathtaking views and professional guides. Experience the thrill of high altitude.',
+          duration: 7,
+          nights: 6,
+          price: 35000,
+          categoryId: 'cat2',
+          category: demoCategories[1],
+          image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=1200&h=600&fit=crop',
+          isActive: true,
+          highlights: ['Mountain Views', 'Professional Guide', 'Camping Equipment', 'Altitude Experience'],
+          included: ['All Meals', 'Camping Gear', 'Guide Services', 'Porter Service'],
+          days: [
+            {
+              title: 'Base Camp Arrival',
+              description: 'Arrive at base camp, meet your guide, and prepare for the trek.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Camp Setup', 'Guide Briefing', 'Equipment Check', 'Welcome Dinner']
+            },
+            {
+              title: 'Summit Day',
+              description: 'The big day! Early start, challenging climb to the summit with spectacular views.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Summit Attempt', 'Mountain Climbing', 'Peak Photography', 'Celebration Lunch']
+            },
+            {
+              title: 'Descent Day',
+              description: 'Begin descent back to base camp with beautiful valley views and rest stops.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Descent Hiking', 'Valley Views', 'Rest Stops', 'Camp Dinner']
+            },
+            {
+              title: 'Departure',
+              description: 'Final breakfast, certificate distribution, and farewell to mountain team.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Breakfast', 'Certificate Ceremony', 'Group Photo', 'Departure']
+            }
+          ]
+        },
+        {
+          id: 'dest3',
+          title: 'City Explorer Package',
+          description: 'Comprehensive city tour with cultural experiences, local cuisine, and urban exploration.',
+          duration: 4,
+          nights: 3,
+          price: 20000,
+          categoryId: 'cat3',
+          category: demoCategories[2],
+          image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=1200&h=600&fit=crop',
+          isActive: true,
+          highlights: ['City Tours', 'Museums', 'Local Cuisine', 'Shopping Districts'],
+          included: ['Hotel Accommodation', 'City Tours', 'Museum Entry', 'Guide Services'],
+          days: [
+            {
+              title: 'City Arrival & Orientation',
+              description: 'Arrive in the city, check into hotel, and get oriented with welcome dinner.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Hotel Check-in', 'City Orientation', 'Welcome Dinner', 'Evening Walk']
+            },
+            {
+              title: 'Cultural Exploration',
+              description: 'Visit museums, historical sites, and experience local culture and traditions.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Museum Tours', 'Historical Sites', 'Cultural Shows', 'Local Lunch']
+            },
+            {
+              title: 'Shopping & Leisure',
+              description: 'Free time for shopping, exploring markets, and personal leisure activities.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Market Shopping', 'Souvenir Hunting', 'Cafe Hopping', 'Dinner Show']
+            },
+            {
+              title: 'Departure Day',
+              description: 'Final city breakfast, last-minute sightseeing, and airport transfer.',
+              image: 'https://images.unsplash.com/photo-1464821697019-f8bbcc01999?w=800&h=400&fit=crop',
+              activities: ['Farewell Breakfast', 'Last Sightseeing', 'Airport Transfer']
+            }
+          ]
+        }
+      ];
+      
+      setCategories(demoCategories);
+      const mappedDemoDestinations = demoDestinations.map(mapApiToDestination);
+      setDestinations(mappedDemoDestinations);
+      
+      // Cache demo data for categories page
+      localStorage.setItem('cachedCategories', JSON.stringify(demoCategories));
+      localStorage.setItem('cachedDestinations', JSON.stringify(demoDestinations));
     } finally {
       setIsLoading(false);
     }
@@ -160,25 +302,29 @@ export default function DestinationsPage() {
     try {
       // Find destination to get title for activity
       const destinationToDelete = destinations.find(d => d.id === id);
-      
+
       await api.deleteDestination(id);
-      
-      // Emit activity for deletion
+
+      // Add activity to localStorage
       if (destinationToDelete) {
-        window.dispatchEvent(new CustomEvent('storage-updated', {
-          detail: { 
-            type: 'activity', 
-            data: {
-              action: 'deleted',
-              type: 'destination',
-              title: destinationToDelete.title,
-              description: `Deleted destination: ${destinationToDelete.title}`,
-              timestamp: new Date()
-            }
-          }
-        }));
+        const newActivity = {
+          id: Date.now().toString(),
+          type: 'destination' as const,
+          action: 'deleted' as const,
+          title: destinationToDelete.title,
+          timestamp: new Date().toISOString(),
+          user: 'Admin'
+        };
+        
+        console.log('Adding destination deletion activity:', newActivity);
+        
+        const existingActivities = JSON.parse(localStorage.getItem('recentActivities') || '[]');
+        const updatedActivities = [newActivity, ...existingActivities].slice(0, 10);
+        localStorage.setItem('recentActivities', JSON.stringify(updatedActivities));
+        
+        console.log('Updated activities after deletion:', updatedActivities);
       }
-      
+
       await loadData();
     } catch (err: any) {
       alert(err?.message || 'Failed to delete destination');
@@ -224,36 +370,40 @@ export default function DestinationsPage() {
       const payload = buildBackendPayload();
       if (editingDestination) {
         await api.updateDestination(editingDestination.id, payload);
+
+        // Add activity to localStorage
+        const newActivity = {
+          id: Date.now().toString(),
+          type: 'destination' as const,
+          action: 'updated' as const,
+          title: formData.title,
+          timestamp: new Date().toISOString(),
+          user: 'Admin'
+        };
         
-        // Emit activity for update
-        window.dispatchEvent(new CustomEvent('storage-updated', {
-          detail: { 
-            type: 'activity', 
-            data: {
-              action: 'updated',
-              type: 'destination',
-              title: formData.title,
-              description: `Updated destination: ${formData.title}`,
-              timestamp: new Date()
-            }
-          }
-        }));
+        const existingActivities = JSON.parse(localStorage.getItem('recentActivities') || '[]');
+        const updatedActivities = [newActivity, ...existingActivities].slice(0, 10);
+        localStorage.setItem('recentActivities', JSON.stringify(updatedActivities));
       } else {
         await api.createDestination(payload);
+
+        // Add activity to localStorage
+        const newActivity = {
+          id: Date.now().toString(),
+          type: 'destination' as const,
+          action: 'created' as const,
+          title: formData.title,
+          timestamp: new Date().toISOString(),
+          user: 'Admin'
+        };
         
-        // Emit activity for creation
-        window.dispatchEvent(new CustomEvent('storage-updated', {
-          detail: { 
-            type: 'activity', 
-            data: {
-              action: 'added',
-              type: 'destination',
-              title: formData.title,
-              description: `Added new destination: ${formData.title}`,
-              timestamp: new Date()
-            }
-          }
-        }));
+        console.log('Adding destination activity:', newActivity);
+        
+        const existingActivities = JSON.parse(localStorage.getItem('recentActivities') || '[]');
+        const updatedActivities = [newActivity, ...existingActivities].slice(0, 10);
+        localStorage.setItem('recentActivities', JSON.stringify(updatedActivities));
+        
+        console.log('Updated activities:', updatedActivities);
       }
       setFormData(initialFormState);
       setShowAddModal(false);
@@ -399,9 +549,7 @@ export default function DestinationsPage() {
       </div>
     );
   return (
-    <div className="page-container">
-      <Navigation />
-
+    <DashboardLayout>
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -414,7 +562,7 @@ export default function DestinationsPage() {
               <button onClick={() => setViewMode('table')} className={`view-toggle button ${viewMode === 'table' ? 'active' : ''}`}>Table</button>
             </div>
             <button onClick={() => { setFormData(initialFormState); setEditingDestination(null); setShowAddModal(true); }} className="add-new-btn">
-             + Add New Destination
+              + Add New Destination
             </button>
           </div>
         </div>
@@ -448,7 +596,7 @@ export default function DestinationsPage() {
                       <div className="card-actions">
                         <button onClick={() => openEditModal(destination)} className="card-btn card-btn-edit">Edit</button>
                         <button onClick={() => openViewModal(destination)} className="card-btn card-btn-view">View</button>
-                        <button onClick={() => handleDelete(destination.id)} className="card-btn card-btn-delete">Del</button>
+                        <button onClick={() => handleDelete(destination.id)} className="card-btn card-btn-delete">Delete</button>
                       </div>
                     </div>
                   </div>
@@ -495,8 +643,8 @@ export default function DestinationsPage() {
 
                         <td className="px-6 py-4 text-center">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${destination.isActive
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
                             }`}>
                             {destination.isActive ? 'Active' : 'Inactive'}
                           </span>
@@ -505,7 +653,7 @@ export default function DestinationsPage() {
                         <td className="px-6 py-4 text-right space-x-2">
                           <button
                             onClick={() => openEditModal(destination)}
-                            className="px-3 py-1 bg-gray-200 rounded"
+                            className="px-3 py-1  bg-gray-200 rounded"
                           >
                             Edit
                           </button>
@@ -610,10 +758,16 @@ export default function DestinationsPage() {
                   <div key={i} className="border p-4 rounded-lg mb-4 bg-gray-50">
                     <div className="flex justify-between mb-2">
                       <h4 className="font-bold">Day {i + 1}</h4>
-                      <button type="button" onClick={() => {
-                        const newDays = formData.days.filter((_, idx) => idx !== i);
-                        setFormData({ ...formData, days: newDays.length ? newDays : initialFormState.days });
-                      }} className="text-red-500 text-sm">Remove Day</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newDays = formData.days.filter((_, idx) => idx !== i);
+                          setFormData({ ...formData, days: newDays.length ? newDays : initialFormState.days });
+                        }}
+                        className="btn-remove-day"
+                      >
+                        Remove Day
+                      </button>
                     </div>
                     <input type="text" placeholder="Day Title" className="form-input mb-2" value={day.title ?? ''} onChange={e => updateDay(i, 'title', e.target.value)} />
                     <input type="text" placeholder="Day Image URL" className="form-input mb-2" value={day.image ?? ''} onChange={e => updateDay(i, 'image', e.target.value)} />
@@ -622,7 +776,7 @@ export default function DestinationsPage() {
                     <div className="mt-2">
                       <div className="flex justify-between items-center mb-1">
                         <label className="text-xs font-bold uppercase text-gray-500">Activities</label>
-                        <button type="button" onClick={() => addActivity(i)} className="text-blue-600 text-xs">+ Add Activity</button>
+                        <button type="button" onClick={() => addActivity(i)} className="btn-add-activity">+ Add Activity</button>
                       </div>
                       {day.activities.map((act, actIdx) => (
                         <div key={actIdx} className="flex gap-2 mb-1">
@@ -675,26 +829,38 @@ export default function DestinationsPage() {
       {/* View Modal */}
       {showViewModal && selectedDestination && (
         <div className="modal-overlay">
-          <div className="modal-content max-w-6xl max-h-[90vh] overflow-y-auto">
-            {/* Header with Image */}
-            <div className="relative h-80">
-              <img src={selectedDestination.image || 'https://images.unsplash.com/photo-1469474968028-5669f8e4b82?w=800&h=400&fit=crop'} className="w-full h-full object-cover" alt={selectedDestination.title} />
-              <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent"></div>
-              <button onClick={() => setShowViewModal(false)} className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full w-10 h-10 flex items-center justify-center shadow-lg hover:bg-white transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="modal-content max-w-7xl max-h-[95vh] overflow-y-auto">
+            {/* Header with Large Image */}
+            <div className="relative h-96 md:h-[32rem] rounded-t-xl overflow-hidden">
+              <img 
+                src={selectedDestination.image || 'https://images.unsplash.com/photo-1469474968028-5669f8e4b82?w=1200&h=600&fit=crop'} 
+                className="w-full h-full object-cover" 
+                alt={selectedDestination.title} 
+                onError={(e) => {
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1469474968028-5669f8e4b82?w=1200&h=600&fit=crop';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent"></div>
+              <button 
+                onClick={() => setShowViewModal(false)} 
+                className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full w-12 h-12 flex items-center justify-center shadow-xl hover:bg-white transition-all hover:scale-105 z-10"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <div className="absolute bottom-6 left-6 text-white">
-                <h1 className="text-4xl font-bold mb-2">{selectedDestination.title}</h1>
-                <div className="flex items-center gap-4 text-lg">
-                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
+              
+              {/* Title and Badges - Left Side Only */}
+              <div className="absolute left-0 top-12 bottom-6 bg-gradient-to-r from-blue-600/95 to-transparent p-6 rounded-r-xl">
+                <h1 className="text-3xl md:text-4xl font-bold mb-3 text-white drop-shadow-lg">{selectedDestination.title}</h1>
+                <div className="flex flex-wrap gap-3 text-lg md:text-xl">
+                  <span className="bg-orange-500/90 backdrop-blur-md px-4 py-2 rounded-full border border-orange-400 font-bold">
                     🕒 {selectedDestination.duration}D / {(selectedDestination.nights || 0)}N
                   </span>
-                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                    📂 {selectedDestination.category?.name}
+                  <span className="bg-teal-500/90 backdrop-blur-md px-4 py-2 rounded-full border border-teal-400 font-bold">
+                    📂 {selectedDestination.category?.name || 'Uncategorized'}
                   </span>
-                  <span className="bg-green-500/80 backdrop-blur-sm px-3 py-1 rounded-full font-bold">
+                  <span className="bg-emerald-500/90 backdrop-blur-md px-4 py-2 rounded-full border border-emerald-400 font-bold text-lg">
                     ₹{Number(selectedDestination.price).toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -702,22 +868,32 @@ export default function DestinationsPage() {
             </div>
 
             {/* Content */}
-            <div className="p-8">
+            <div className="p-6 md:p-8 space-y-8">
               {/* Description */}
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">About This Destination</h2>
-                <p className="text-gray-600 leading-relaxed text-lg">{selectedDestination.description}</p>
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <h2 className="text-2xl md:text-3xl font-bold mb-4 text-gray-800 flex items-center gap-3">
+                  <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                    📝
+                  </span>
+                  About This Destination
+                </h2>
+                <p className="text-gray-600 leading-relaxed text-lg md:text-xl">{selectedDestination.description}</p>
               </div>
 
               {/* Highlights */}
               {selectedDestination.highlights && selectedDestination.highlights.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold mb-4 text-gray-800">Destination Highlights</h2>
-                  <div className="grid md:grid-cols-2 gap-3">
+                <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-6 shadow-sm border border-purple-100">
+                  <h2 className="text-2xl md:text-3xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+                    <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600">
+                      ✨
+                    </span>
+                    Destination Highlights
+                  </h2>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {selectedDestination.highlights.map((highlight, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                        <span className="text-blue-500 text-xl">✨</span>
-                        <span className="text-gray-700">{highlight}</span>
+                      <div key={i} className="flex items-start gap-3 p-4 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                        <span className="text-purple-500 text-2xl">✨</span>
+                        <span className="text-gray-700 font-medium">{highlight}</span>
                       </div>
                     ))}
                   </div>
@@ -726,26 +902,53 @@ export default function DestinationsPage() {
 
               {/* Day by Day Itinerary */}
               {selectedDestination.days && selectedDestination.days.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold mb-6 text-gray-800">Day-by-Day Itinerary</h2>
-                  <div className="space-y-6">
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-6 shadow-sm border border-orange-100">
+                  <h2 className="text-2xl md:text-3xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+                    <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
+                      📅
+                    </span>
+                    Day-by-Day Itinerary
+                  </h2>
+                  <div className="space-y-8">
                     {selectedDestination.days.map((day, idx) => (
-                      <div key={idx} className="border-l-4 border-blue-500 pl-6 relative">
-                        <div className="absolute -left-2 top-2 w-4 h-4 bg-blue-500 rounded-full"></div>
-                        <div className="bg-gray-50 rounded-lg p-6">
-                          <h3 className="text-xl font-bold mb-3 text-gray-800">Day {idx + 1}: {day.title}</h3>
+                      <div key={idx} className="relative">
+                        {/* Day Number */}
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                            {idx + 1}
+                          </div>
+                          <h3 className="text-xl md:text-2xl font-bold text-gray-800 flex-1">
+                            {day.title}
+                          </h3>
+                        </div>
+                        
+                        {/* Day Content */}
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 ml-16">
                           {day.image && (
-                            <img src={day.image} className="w-full h-48 object-cover rounded-lg mb-4" alt={day.title} />
+                            <img 
+                              src={day.image} 
+                              className="w-full h-64 md:h-80 object-cover rounded-xl mb-6 shadow-sm" 
+                              alt={day.title}
+                              onError={(e) => {
+                                e.currentTarget.src = 'https://images.unsplash.com/photo-1506905925346-56b1e46b7554?w=800&h=400&fit=crop';
+                              }}
+                            />
                           )}
-                          <p className="text-gray-600 mb-4">{day.description}</p>
+                          <p className="text-gray-600 leading-relaxed text-lg mb-6">{day.description}</p>
+                          
                           {day.activities && day.activities.length > 0 && (
-                            <div>
-                              <h4 className="font-semibold mb-2 text-gray-700">Activities:</h4>
-                              <ul className="space-y-2">
+                            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+                              <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-3">
+                                <span className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm">
+                                  🎯
+                                </span>
+                                Activities:
+                              </h4>
+                              <ul className="grid md:grid-cols-2 gap-4">
                                 {day.activities.map((activity, actIndex) => (
-                                  <li key={actIndex} className="flex items-center gap-2 text-gray-600">
-                                    <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-                                    {activity}
+                                  <li key={actIndex} className="flex items-start gap-3 text-gray-700 bg-white p-4 rounded-lg border border-gray-200">
+                                    <span className="w-3 h-3 bg-blue-400 rounded-full mt-1 flex-shrink-0"></span>
+                                    <span className="text-lg leading-relaxed">{activity}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -798,6 +1001,6 @@ export default function DestinationsPage() {
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }
