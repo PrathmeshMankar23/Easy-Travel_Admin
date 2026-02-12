@@ -71,6 +71,20 @@ export const api = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || err.message || "Failed to create category");
     }
+    
+    // Dispatch event to notify frontend
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('adminAction', {
+        detail: { 
+          type: 'category', 
+          action: 'added', 
+          itemName: categoryData.name || categoryData.title || 'New Category',
+          details: `Category "${categoryData.name || categoryData.title || 'New Category'}" was added successfully`
+        }
+      }));
+      console.log('📢 Admin event dispatched: category added');
+    }
+    
     return response.json();
   },
 
@@ -88,6 +102,20 @@ export const api = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || err.message || "Failed to update category");
     }
+    
+    // Dispatch event to notify frontend
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('adminAction', {
+        detail: { 
+          type: 'category', 
+          action: 'updated', 
+          itemName: categoryData.name || categoryData.title || 'Updated Category',
+          details: `Category "${categoryData.name || categoryData.title || 'Updated Category'}" was updated successfully`
+        }
+      }));
+      console.log('📢 Admin event dispatched: category updated');
+    }
+    
     return response.json();
   },
 
@@ -101,6 +129,20 @@ export const api = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || err.message || "Failed to delete category");
     }
+    
+    // Dispatch event to notify frontend
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('adminAction', {
+        detail: { 
+          type: 'category', 
+          action: 'deleted', 
+          itemName: `Category ID: ${id}`,
+          details: `Category with ID ${id} was deleted successfully`
+        }
+      }));
+      console.log('📢 Admin event dispatched: category deleted');
+    }
+    
     return response.json();
   },
 
@@ -161,6 +203,20 @@ export const api = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || err.message || "Failed to create destination");
     }
+    
+    // Dispatch event to notify frontend
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('adminAction', {
+        detail: { 
+          type: 'destination', 
+          action: 'added', 
+          itemName: destinationData.title || destinationData.name || 'New Destination',
+          details: `Destination "${destinationData.title || destinationData.name || 'New Destination'}" was added successfully`
+        }
+      }));
+      console.log('📢 Admin event dispatched: destination added');
+    }
+    
     return response.json();
   },
 
@@ -178,6 +234,20 @@ export const api = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || err.message || "Failed to update destination");
     }
+    
+    // Dispatch event to notify frontend
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('adminAction', {
+        detail: { 
+          type: 'destination', 
+          action: 'updated', 
+          itemName: destinationData.title || destinationData.name || 'Updated Destination',
+          details: `Destination "${destinationData.title || destinationData.name || 'Updated Destination'}" was updated successfully`
+        }
+      }));
+      console.log('📢 Admin event dispatched: destination updated');
+    }
+    
     return response.json();
   },
 
@@ -191,6 +261,20 @@ export const api = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || err.message || "Failed to delete destination");
     }
+    
+    // Dispatch event to notify frontend
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('adminAction', {
+        detail: { 
+          type: 'destination', 
+          action: 'deleted', 
+          itemName: `Destination ID: ${id}`,
+          details: `Destination with ID ${id} was deleted successfully`
+        }
+      }));
+      console.log('📢 Admin event dispatched: destination deleted');
+    }
+    
     return response.json();
   },
 
