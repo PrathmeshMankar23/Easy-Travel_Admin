@@ -189,6 +189,28 @@ export const api = {
     }
   },
 
+  getDestinationById: async (id: string) => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await fetch(`${API_BASE_URL}/destinations/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || err.message || "Failed to fetch destination");
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Destination by ID API Error:', error);
+      throw new Error("Failed to fetch destination details");
+    }
+  },
+
   createDestination: async (destinationData: any) => {
     const token = localStorage.getItem("adminToken");
     const response = await fetch(`${API_BASE_URL}/destinations`, {

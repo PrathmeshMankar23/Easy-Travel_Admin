@@ -159,19 +159,6 @@ export default function CategoriesPage() {
     setDestinationsInModal(filtered);
   };
 
-  const changeDestinationCategory = async (dest: DestinationForCategory, newCategoryId: string) => {
-    try {
-      await api.updateDestination(dest.id, { ...dest, categoryId: newCategoryId });
-      const allDests = await api.getDestinations();
-      setDestinationsInModal(allDests.filter((d: any) => 
-        String(d.categoryId).trim().toLowerCase() === String(selectedCategory?.id).trim().toLowerCase()
-      ));
-      loadCategories();
-    } catch (e) {
-      alert("Update failed");
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="flex justify-between items-center mb-8">
@@ -284,16 +271,8 @@ export default function CategoriesPage() {
                     <div key={dest.id} className="flex justify-between items-center p-4 bg-white border border-gray-100 rounded-xl hover:border-blue-200 transition-colors shadow-sm">
                       <span className="font-bold text-gray-700">{dest.title}</span>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-400 font-semibold uppercase">Move to:</span>
-                        <select
-                          value={dest.categoryId}
-                          onChange={(e) => changeDestinationCategory(dest, e.target.value)}
-                          className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                        <span className="text-xs text-gray-400 font-semibold uppercase">Category:</span>
+                        <span className="text-sm text-gray-600">{selectedCategory?.name}</span>
                       </div>
                     </div>
                   ))}
