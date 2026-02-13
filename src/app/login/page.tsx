@@ -50,13 +50,6 @@ export default function LoginPage() {
           <p className="mt-2 text-center text-sm text-secondary">
             Sign in to manage your travel website
           </p>
-          <div className="mt-4 p-3 bg-blue-50 rounded-md">
-            <p className="text-xs text-blue-800 text-center">
-              <strong>Demo Credentials:</strong><br/>
-              Email: admin@easytravels.com<br/>
-              Password: admin123
-            </p>
-          </div>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
